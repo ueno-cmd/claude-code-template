@@ -30,7 +30,7 @@ description: "初期要件を読み込んでステアリングファイルを自
 
 ## ステップ3：ステアリングファイルの自動生成
 
-読み込んだ内容を踏まえて、`docs/steering/` 以下に以下の3ファイルを生成してください。
+読み込んだ内容を踏まえて、`docs/steering/` 以下に以下の4ファイルを生成してください。
 
 - `docs/steering/requirements.md` — 整理された、正式な要件定義書
 - `docs/steering/repo-structure.md` — ディレクトリ構成・ファイル責務

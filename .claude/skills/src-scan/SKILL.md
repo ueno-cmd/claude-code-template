@@ -1,9 +1,16 @@
+---
+name: src-scan
+description: /realign で「白旗」になった大規模な src/ をディレクトリごとに並列分析し、docs/realign-summary.md の src セクションを更新する
+argument-hint: "[スキャン対象ディレクトリ（省略時は src）]"
+disable-model-invocation: true
+---
+
 # /src-scan
 
 `docs/realign-summary.md` の src セクションを本格分析で上書きします。
 `/realign` 完了後に実行してください。
 
-$ARGUMENTS でスキャン対象を指定できます（省略時は `src/`）。
+スキャン対象：`$ARGUMENTS`（空欄の場合は `src/`）
 
 ---
 
@@ -26,36 +33,16 @@ ls ${ARGUMENTS:-src}/ 2>/dev/null
 ls -1 ${ARGUMENTS:-src}/
 ```
 
-取得したトップディレクトリのリストを確認し、並列タスクに割り当てを決めてください。
+取得したトップディレクトリのリストを確認し、`src-scanner` エージェントへの割り当てを決めてください。
 
 ---
 
 ### Phase 3: ディレクトリ別並列分析
 
-Phase 2 で取得したトップディレクトリごとに**並列タスク**を起動してください。
+Phase 2 で取得したトップディレクトリごとに、**`src-scanner` エージェントを並列で**起動してください（1回のメッセージでまとめて起動する）。
 
-各タスクへの指示:
-
-```
-担当ディレクトリ: {dir}
-
-以下を実行してください:
-1. ファイル一覧を取得する
-   find src/{dir} -type f | head -40
-
-2. 代表ファイルを 3〜5 件選んで冒頭 40 行を読む
-   （index ファイル・最も行数が多いファイルを優先）
-
-3. 以下の JSON 形式で結果を返す:
-{
-  "dir": "{dir}",
-  "file_count": {N},
-  "naming_style": "PascalCase / kebab-case / snake_case / 混在",
-  "patterns": ["検出したパターンを列挙"],
-  "issues": ["命名ブレ・深すぎるネスト・循環import疑い など"],
-  "representative_files": ["代表ファイルパスを列挙"]
-}
-```
+各エージェントには担当ディレクトリのパス（例: `src/components`）だけを渡します。
+分析手順と返却する JSON の形式は `.claude/agents/src-scanner.md` に定義されています。
 
 ---
 
@@ -121,4 +108,4 @@ Phase 2 で取得したトップディレクトリごとに**並列タスク**�
 
 - `docs/realign-summary.md` の `## src/` セクション**のみ**を変更する
 - ステアリングファイルはまだ生成しない
-- 更新前に「作業計画（上書き対象セクションの確認）」を提示し、ユーザーの承認（y）を得てから書き込む
+- 更新前にプランモードで「作業計画（上書き対象セクションの確認）」を提示し、ユーザーの承認を得てから書き込む

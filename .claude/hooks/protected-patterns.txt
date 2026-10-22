@@ -1,0 +1,12 @@
+# protected-patterns.txt
+# 本番環境を示す文字列を1行に1つ書く（大文字小文字は区別しない・正規表現ではなく固定文字列で比較）
+# コマンドや MCP の引数にこれらが含まれると、guard-dangerous.sh が
+#   - 破壊的なDB操作と組み合わさった場合 → ブロック
+#   - それ以外                         → 実行前に確認
+# を行う。空のままでも動作する（その場合は汎用キーワード "prod" / "production" のみで判定）
+#
+# 記入例:
+# db.example-prod.internal
+# xxxxxxxx.supabase.co
+# myapp-prod.abcdefg.ap-northeast-1.rds.amazonaws.com
+# PROD_DATABASE_URL

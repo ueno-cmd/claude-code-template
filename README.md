@@ -2,7 +2,7 @@
 
 **Claude Code でAI駆動開発を行うためのプロジェクト・テンプレート（雛形）です。**
 
-実際のアプリケーションコードは含まれていません。AIに開発作業を任せるための「行動指針・進行ルール・自動化の仕組み」を事前にセットアップした土台であり、ここから新しいアプリ開発を始めたり、既存プロジェクトの整理に使ったりします。
+実際のアプリケーションコードは含まれていません。AIに開発作業を任せるための「行動指針・進行ルール・自動化の仕組み」を事前にセットアップした土台であり、Webアプリ・Webサイト（LP）・機械学習コンペなどの新しいプロジェクトを始めたり、既存プロジェクトの整理に使ったりします。
 
 ---
 
@@ -11,8 +11,8 @@
 このテンプレートは、AIとの開発を安全かつ一貫させるための **3本の柱** で構成されています。
 
 1. **ステアリング方式** — 要件メモから「指針ファイル群（`docs/steering/`）」を生成し、AIは常にそれに従って開発します。プロジェクトの方針がブレません。
-2. **計画承認ルール** — AIはいきなりコードを書き始めず、必ず作業計画を提示して承認（`y`）を得てから着手します。
-3. **自動化フック** — 危険なコマンドの遮断、編集後の品質チェック、完了前チェックリストを自動実行し、ガードレールとして機能します。
+2. **計画承認ルール** — AIはいきなりコードを書き始めず、プランモードで作業計画を提示して承認を得てから着手します。
+3. **本番ガード** — 危険なコマンドや本番DBへの破壊的操作を、フックが実行前にブロック（または確認）します。
 
 ---
 
@@ -34,18 +34,29 @@
 
 ```
 claude-code-template/
-├── CLAUDE.md                       # AIへの最上位の行動指針（最優先で遵守される）
+├── CLAUDE.md                       # AIへの行動指針の入口（rules への案内）
 ├── README.md                       # このファイル
+├── .gitignore                      # 個人用設定（CLAUDE.local.md 等）を除外
 ├── .claude/
-│   ├── settings.json               # フック（自動チェック）の登録
-│   ├── commands/                   # 独自スラッシュコマンド
-│   │   ├── starter.md              # 要件 → ステアリングファイル自動生成
-│   │   ├── realign.md              # 既存プロジェクトをスキャンして要約
-│   │   └── src-scan.md             # src/ を並列分析して要約を更新
-│   └── hooks/                      # 自動実行されるシェルスクリプト
-│       ├── pre-bash-check.sh       # 危険なBashコマンドを事前にブロック
-│       ├── post-edit-check.sh      # ファイル編集後の品質チェック
-│       └── stop-checklist.sh       # タスク完了前のチェックリスト
+│   ├── settings.json               # 権限（.env の読み取り禁止）とフックの登録
+│   ├── rules/                      # AIが常に読み込むルール（CLAUDE.md から分割）
+│   │   ├── communication.md        # 日本語・トーン
+│   │   ├── workflow.md             # 計画承認・進行ルール・標準ワークフロー
+│   │   ├── steering.md             # ステアリングファイルの読み方
+│   │   ├── deliverables.md         # 成果物の言語・記録の保存先
+│   │   └── production-safety.md    # 本番環境・秘密情報の安全管理
+│   ├── skills/                     # スラッシュコマンドとして使えるスキル
+│   │   ├── starter/SKILL.md        # 要件 → ステアリングファイル自動生成
+│   │   ├── realign/SKILL.md        # 既存プロジェクトをスキャンして要約
+│   │   └── src-scan/SKILL.md       # src/ を並列分析して要約を更新
+│   ├── agents/                     # サブエージェント
+│   │   ├── src-scanner.md          # ディレクトリ単位の読み取り専用分析
+│   │   └── steering-checker.md     # 変更がステアリングに沿っているか確認
+│   └── hooks/
+│       ├── guard-dangerous.sh      # 危険なコマンド・本番DB操作を実行前に止める
+│       ├── protected-patterns.txt  # 本番DBのホスト名などを記入（プロジェクトごと）
+│       └── tests/
+│           └── guard-dangerous.test.sh  # フックのテスト
 └── docs/
     ├── idea/
     │   └── initial-requirements.md # 開発者が最初に書く要件メモ
@@ -65,9 +76,10 @@ claude-code-template/
 ### 🟢 ゼロから新規開発する場合
 
 1. `docs/idea/initial-requirements.md` の空欄（やりたいこと・機能など）を埋める
-2. `/starter` を実行する
-3. AIが `docs/steering/` 配下に4つの指針ファイルを生成する
-4. 内容を確認・承認したら、計画化（`/starter` のワークフロー）を経て実装へ進む
+2. 本番DBを使うプロジェクトなら、`.claude/hooks/protected-patterns.txt` に本番のホスト名などを書く
+3. `/starter` を実行する
+4. AIが `docs/steering/` 配下に4つの指針ファイルを生成する
+5. 内容を確認・承認したら、プランモードでの計画化を経て実装へ進む
 
 ### 🔵 既存プロジェクトに参入する場合
 
@@ -85,53 +97,103 @@ claude-code-template/
 
 ---
 
-## スラッシュコマンド一覧
+## スキル（スラッシュコマンド）一覧
 
 | コマンド | 使うとき | 入力（読む） | 出力（書く） |
 |---------|---------|------------|------------|
-| `/starter` | ゼロから新規開発を始めるとき | `initial-requirements.md` | `docs/steering/` の4ファイル |
+| `/starter` | ゼロから新規開発を始めるとき | `docs/idea/initial-requirements.md` | `docs/steering/` の4ファイル |
 | `/realign` | 既存プロジェクトの全体像を素早く掴みたいとき | プロジェクト全体（package.json・git・README 等） | `docs/realign-summary.md` |
-| `/src-scan` | `/realign` で「src が大きすぎて白旗」になったとき | `src/` 配下を並列で精査 | `docs/realign-summary.md` の src セクションのみ |
+| `/src-scan [dir]` | `/realign` で「src が大きすぎて白旗」になったとき | `src/`（または指定ディレクトリ）配下を `src-scanner` エージェントで並列精査 | `docs/realign-summary.md` の src セクションのみ |
 
+> どれもファイルを書き込むため、AIが勝手に起動しないよう `disable-model-invocation: true` を設定しています。
 > `/src-scan` は単体では使わず、必ず `/realign` の後に実行します。
 
 ---
 
-## 自動化フック
+## サブエージェント
 
-`.claude/settings.json` に登録され、特定のタイミングで自動実行されます。
+| エージェント | 役割 | 使えるツール |
+|------------|------|------------|
+| `src-scanner` | 1ディレクトリを分析し JSON で返す（`/src-scan` から呼ばれる） | Read / Grep / Glob（読み取り専用） |
+| `steering-checker` | 変更がステアリングファイル（スコープ・配置・用語・規約）に沿っているか確認する | Read / Grep / Glob / Bash（git の参照のみ） |
 
-| フック | 発火タイミング | 役割 |
-|-------|--------------|------|
-| `pre-bash-check.sh` | Bashコマンド実行前 | `rm -rf *` や `git push --force` などの危険な操作をブロック |
-| `post-edit-check.sh` | `.ts` / `.tsx` 編集後 | 型チェック・Lint・テスト（任意で有効化）＋ APIキー流出の検知 |
-| `stop-checklist.sh` | タスク終了時 | ステアリングファイルの有無・未コミット変更・TODO残存を確認 |
-
-> `post-edit-check.sh` の型チェック／Lint／テストは初期状態でコメントアウトされています。プロジェクトの種別に応じて必要な行を有効化してください。
+> バグの検出は Claude Code 組み込みの `/code-review` に任せ、`steering-checker` はステアリングとの整合だけを見ます。
 
 ---
 
-## 開発ワークフロー
+## 本番ガード（フック）
 
-`CLAUDE.md` で定義された6つのフェーズに沿って進めます。
+`.claude/settings.json` で、`Bash` と MCP ツール（`mcp__.*`）の実行前に `guard-dangerous.sh` が動きます。
 
-1. **フェーズ1：要件定義・設計合意** — 実装前にユーザーと要件を深掘りし、設計を合意する（承認必須）
-2. **フェーズ2：ステアリングファイル自動生成** — `initial-requirements.md` から4つの指針ファイルを生成する（承認必須）
-3. **フェーズ3：計画化** — タスクを分解し、テスト・検証手順を含む実装計画を作成する（承認必須）
-4. **フェーズ4：実装・品質保証・デバッグ** — テスト駆動で実装し、自己検証する（自律ループ）
-5. **フェーズ5：UIリニューアル** — 機能実装・動作確認の完了後、指示があった場合のみ実施する
-6. **フェーズ6：レビュー** — 動作確認後にコードレビューを依頼し、指摘を反映する
+| 検知内容 | 判定 |
+|---------|------|
+| `rm -rf /`・`rm -rf *`・`rm -rf ~` など広範囲の再帰削除 | 🚫 ブロック |
+| `git push --force` / `-f` / `+ブランチ`（`--force-with-lease` は通す） | 🚫 ブロック |
+| `git commit` 時、コミット予定の変更にAPIキーらしき文字列がある | 🚫 ブロック |
+| 破壊的なDB操作（DROP / TRUNCATE / WHERE句なしDELETE / `migrate reset` / `db:drop` など）× 本番 | 🚫 ブロック |
+| 破壊的なDB操作のみ | ⚠️ 実行前に確認 |
+| 本番DBへのアクセスのみ | ⚠️ 実行前に確認 |
+
+「本番」かどうかは、次の2つで判定します。
+
+- `.claude/hooks/protected-patterns.txt` に書いた文字列（1行1つ、固定文字列）
+- DBコマンド（`psql`・`prisma` など）やDB系 MCP の中に出てくる `prod` / `production` というキーワード
+
+フックは最後の砦です。本番の接続情報を開発環境に置かないことが基本です（`.claude/rules/production-safety.md`）。
+また `.env`・`.env.local`・`.env.production`・`.env.*.local` は、`permissions.deny` で読み取りを禁止しています。
+
+パターンを変更したら、次のコマンドでテストしてください（動作には `jq` が必要です）。
+
+```bash
+bash .claude/hooks/tests/guard-dangerous.test.sh
+```
+
+### プロジェクト固有のチェックを足したい場合
+
+型チェック・Lint・テストなどはプロジェクトごとに違うので、テンプレートには入れていません。必要なら、そのプロジェクトの `.claude/settings.json` に PostToolUse フックを追加します。`if` でファイルパスを絞り込めます。
+
+```json
+"PostToolUse": [
+  {
+    "matcher": "Edit|Write",
+    "hooks": [
+      { "type": "command", "if": "Edit(src/**/*.ts)", "command": "npm run typecheck" }
+    ]
+  }
+]
+```
+
+> `if` に書けるルールは1つだけです。条件を複数にしたい場合は、ハンドラーを分けて並べます。
 
 ---
 
-## 守るべきルール
+## プラグインをプロジェクト単位で使う
 
-`CLAUDE.md` に定められた、AIが常に遵守する主要ルールです。
+superpowers や frontend-design は、全体（ユーザー設定）ではなく、必要なプロジェクトでだけ有効化する方針です。
+そのプロジェクトの `.claude/settings.json` に、次のように追記します。
 
-- **言語**：すべて日本語で応答する（成果物・コメント含む）
-- **計画承認の必須化**：着手前に作業計画を報告し、承認（`y`）を得てから実装する
-- **ユーザーの意図を優先**：より良い方法があっても勝手に最適化せず、提案として別途伝える
-- **破壊的操作の慎重化**：削除・上書きの前に影響範囲を明示し、可能ならドライランを行う
-- **透明性の維持**：何を・なぜ実行しているかを常に説明する
+```json
+{
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true
+  }
+}
+```
 
-> `CLAUDE.md` が最上位命令です。ステアリングファイルと矛盾する場合は `CLAUDE.md` を優先します。
+> プラグイン本体が各自のマシンにインストールされている必要があります（`/plugin` で確認・インストール）。
+> 有効にした場合は、`workflow.md` の該当フェーズでそれらのスキルを使えます。
+
+---
+
+## 開発ワークフローとルール
+
+ワークフローの6つのフェーズとAIが守るルールは、`.claude/rules/` にまとまっています。詳しくは各ファイルを参照してください。
+
+- 進行ルール・ワークフロー → [`.claude/rules/workflow.md`](.claude/rules/workflow.md)
+- コミュニケーション → [`.claude/rules/communication.md`](.claude/rules/communication.md)
+- 成果物 → [`.claude/rules/deliverables.md`](.claude/rules/deliverables.md)
+- ステアリング → [`.claude/rules/steering.md`](.claude/rules/steering.md)
+- 本番の安全管理 → [`.claude/rules/production-safety.md`](.claude/rules/production-safety.md)
+
+個人だけの設定は `CLAUDE.local.md` や `.claude/settings.local.json` に書きます（どちらも `.gitignore` 済み）。

@@ -1,18 +1,12 @@
 ---
-allowed-tools: []
-description: "初期要件を読み込んでステアリングファイルを自動生成する"
+name: starter
+description: 初期要件（docs/idea/initial-requirements.md）を読み込み、docs/steering/ の4つのステアリングファイルを生成する
+disable-model-invocation: true
 ---
 
 # スターター：ステアリングファイル生成
 
 以下の手順でプロジェクトの要件を把握し、ステアリングファイルを生成してください。
-
-## ステップ0：スキルの読み込み
-
-以下のスキルを読み込んでください：
-- `superpowers:brainstorming`
-- `superpowers:writing-plans`
-- `superpowers:executing-plans`
 
 ## ステップ1：ドキュメントの読み込み
 

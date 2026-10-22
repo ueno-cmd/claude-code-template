@@ -1,3 +1,9 @@
+---
+name: realign
+description: 既存プロジェクトをスキャンし、技術スタック・構成・Git概況を docs/realign-summary.md にまとめる（ステアリングファイル生成の前段）
+disable-model-invocation: true
+---
+
 # /realign
 
 既存プロジェクトをスキャンし、`docs/realign-summary.md` にサマリを書き出します。
@@ -127,4 +133,4 @@ find src -type d 2>/dev/null | awk -F/ '{print NF}' | sort -n | tail -1
 - `node_modules/` `.git/` `dist/` `.next/` `__pycache__/` は読まない
 - ファイルの中身を読んでいい場所は技術スタック検出（タスク B）と、小規模 src のサンプル読み（Phase 2）のみ
 - `docs/realign-summary.md` 以外のファイルは作成・変更しない
-- サマリ生成前に「作業計画」を提示し、ユーザーの承認（y）を得てから書き出す
+- サマリ生成前にプランモードで「作業計画」を提示し、ユーザーの承認を得てから書き出す

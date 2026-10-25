@@ -23,4 +23,4 @@ Webアプリ・Webサイト（LP）・機械学習コンペで共通に使う開
 
 - **スキル**：`/starter`（新規）・`/realign`（既存プロジェクトの把握）・`/src-scan`（大規模な src の分析）
 - **エージェント**：`src-scanner`（ディレクトリ分析）・`steering-checker`（ステアリングとの整合確認）
-- **フック**：`guard-dangerous.sh` が危険なコマンドと本番DB操作を実行前に止める
+- **秘密情報の保護**：`permissions.deny` で `.env` の読み取りを禁止し、`guard-env.js`（フック）が `.env` に触れる Bash コマンドを止める

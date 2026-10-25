@@ -1,3 +1,10 @@
 # 個人用の Claude Code 設定（共有しない）
 CLAUDE.local.md
 .claude/settings.local.json
+
+# 環境変数（秘密情報）。見本の .env.example だけは追跡する
+.env
+.env.*
+.env-*
+.env_*
+!.env.example

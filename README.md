@@ -12,7 +12,7 @@
 
 1. **ステアリング方式** — 要件メモから「指針ファイル群（`docs/steering/`）」を生成し、AIは常にそれに従って開発します。プロジェクトの方針がブレません。
 2. **計画承認ルール** — AIはいきなりコードを書き始めず、プランモードで作業計画を提示して承認を得てから着手します。
-3. **本番ガード** — 危険なコマンドや本番DBへの破壊的操作を、フックが実行前にブロック（または確認）します。
+3. **秘密情報ガード** — AIに `.env`（接続情報・APIキー）を読ませません。権限設定とフックでブロックし、作業は止めずに理由をAIに返します。
 
 ---
 
@@ -36,7 +36,8 @@
 claude-code-template/
 ├── CLAUDE.md                       # AIへの行動指針の入口（rules への案内）
 ├── README.md                       # このファイル
-├── .gitignore                      # 個人用設定（CLAUDE.local.md 等）を除外
+├── .gitignore                      # 個人用設定（CLAUDE.local.md 等）と .env を除外
+├── .env.example                    # 環境変数の見本（コピーして .env を作る）
 ├── .claude/
 │   ├── settings.json               # 権限（.env の読み取り禁止）とフックの登録
 │   ├── rules/                      # AIが常に読み込むルール（CLAUDE.md から分割）
@@ -53,10 +54,9 @@ claude-code-template/
 │   │   ├── src-scanner.md          # ディレクトリ単位の読み取り専用分析
 │   │   └── steering-checker.md     # 変更がステアリングに沿っているか確認
 │   └── hooks/
-│       ├── guard-dangerous.sh      # 危険なコマンド・本番DB操作を実行前に止める
-│       ├── protected-patterns.txt  # 本番DBのホスト名などを記入（プロジェクトごと）
+│       ├── guard-env.js            # .env に触れる Bash コマンドを実行前に止める
 │       └── tests/
-│           └── guard-dangerous.test.sh  # フックのテスト
+│           └── guard-env.test.js   # フックのテスト
 └── docs/
     ├── idea/
     │   └── initial-requirements.md # 開発者が最初に書く要件メモ
@@ -76,7 +76,7 @@ claude-code-template/
 ### 🟢 ゼロから新規開発する場合
 
 1. `docs/idea/initial-requirements.md` の空欄（やりたいこと・機能など）を埋める
-2. 本番DBを使うプロジェクトなら、`.claude/hooks/protected-patterns.txt` に本番のホスト名などを書く
+2. 環境変数を使うプロジェクトなら、`.env.example` に変数名を書き、`cp .env.example .env` でコピーして値を入れる（本番の接続情報は書かない）
 3. `/starter` を実行する
 4. AIが `docs/steering/` 配下に4つの指針ファイルを生成する
 5. 内容を確認・承認したら、プランモードでの計画化を経て実装へ進む
@@ -121,31 +121,30 @@ claude-code-template/
 
 ---
 
-## 本番ガード（フック）
+## 秘密情報ガード（権限設定とフック）
 
-`.claude/settings.json` で、`Bash` と MCP ツール（`mcp__.*`）の実行前に `guard-dangerous.sh` が動きます。
+AIに `.env` を読ませないために、2つの仕組みを組み合わせています。
 
-| 検知内容 | 判定 |
-|---------|------|
-| `rm -rf /`・`rm -rf *`・`rm -rf ~` など広範囲の再帰削除 | 🚫 ブロック |
-| `git push --force` / `-f` / `+ブランチ`（`--force-with-lease` は通す） | 🚫 ブロック |
-| `git commit` 時、コミット予定の変更にAPIキーらしき文字列がある | 🚫 ブロック |
-| 破壊的なDB操作（DROP / TRUNCATE / WHERE句なしDELETE / `migrate reset` / `db:drop` など）× 本番 | 🚫 ブロック |
-| 破壊的なDB操作のみ | ⚠️ 実行前に確認 |
-| 本番DBへのアクセスのみ | ⚠️ 実行前に確認 |
+| 仕組み | 止めるもの |
+|-------|-----------|
+| `.claude/settings.json` の `permissions.deny` | Read・Edit・Write・Grep などのツールと、`cat .env` のような Claude Code が認識するコマンドでの `.env`・`.env.*`・`.env-*`・`.env_*` へのアクセス（任意の深さ。Read の deny は同じパスへの Edit・Write も止める） |
+| `.claude/hooks/guard-env.js`（PreToolUse フック） | 上で止まらない Bash コマンド（`source .env`、`python -c "open('.env')"` など）。コマンドに `.env` のファイル名が出てきたらブロックする（大文字小文字は区別しない） |
 
-「本番」かどうかは、次の2つで判定します。
+- 見本の `.env.example` だけは、どちらも対象外です（AIが変数名を確認できるように）
+- どちらも「ブロックして理由をAIに返す」だけで、ユーザーの確認待ちで作業が止まることはありません
+- `.env` などは `.gitignore` でコミットの対象からも外しています
+- フックは引用符の中も検査するので、`git commit -m ".env を除外"` のようにファイル名を書くだけのコマンドも止まります。その場合は `git commit -F` や `gh pr create --body-file` で、ファイル経由で渡します（AIにもブロック時のメッセージで伝えます）
 
-- `.claude/hooks/protected-patterns.txt` に書いた文字列（1行1つ、固定文字列）
-- DBコマンド（`psql`・`prisma` など）やDB系 MCP の中に出てくる `prod` / `production` というキーワード
+取り込んだ後は、Claude に「`.env.example` を読んで」と頼むと読めて、「`.env` を読んで」と頼むと拒否されることで動作を確認できます。
 
-フックは最後の砦です。本番の接続情報を開発環境に置かないことが基本です（`.claude/rules/production-safety.md`）。
-また `.env`・`.env.local`・`.env.production`・`.env.*.local` は、`permissions.deny` で読み取りを禁止しています。
+> **限界**：AIが `.env` を読めなくても、ツールは `.env` を使えます（例：`npx prisma migrate reset` は `.env` の接続先に接続します）。本番の接続情報を開発環境の `.env` に置かないことが基本です（`.claude/rules/production-safety.md`）。また、ファイル名を書かない読み取り（`grep -r` など）や、`.e"n"v` のように引用符やワイルドカードで書き換えた書き方は止められません（うっかりミスを止めるのが目的です）。OS レベルで止めたい場合は、Claude Code のサンドボックスを有効にします。
+>
+> **対象外**：危険なコマンド（`rm -rf ~`・`git push --force` など）、本番DBへの破壊的な操作、APIキーを含むコミットは、このテンプレートでは検査していません。Claude Code 標準の権限確認に加えて、必要に応じて `permissions.deny`、GitHub のブランチ保護、secret scanning（秘密情報の検出）などを使ってください。
 
-パターンを変更したら、次のコマンドでテストしてください（動作には `jq` が必要です）。
+フックの判定を変更したら、次のコマンドでテストしてください（動作には Node.js が必要です）。
 
 ```bash
-bash .claude/hooks/tests/guard-dangerous.test.sh
+node .claude/hooks/tests/guard-env.test.js
 ```
 
 ### プロジェクト固有のチェックを足したい場合
@@ -194,6 +193,6 @@ superpowers や frontend-design は、全体（ユーザー設定）ではなく
 - コミュニケーション → [`.claude/rules/communication.md`](.claude/rules/communication.md)
 - 成果物 → [`.claude/rules/deliverables.md`](.claude/rules/deliverables.md)
 - ステアリング → [`.claude/rules/steering.md`](.claude/rules/steering.md)
-- 本番の安全管理 → [`.claude/rules/production-safety.md`](.claude/rules/production-safety.md)
+- 本番・秘密情報の安全管理 → [`.claude/rules/production-safety.md`](.claude/rules/production-safety.md)
 
 個人だけの設定は `CLAUDE.local.md` や `.claude/settings.local.json` に書きます（どちらも `.gitignore` 済み）。

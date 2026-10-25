@@ -1,20 +1,21 @@
 {
   "permissions": {
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.local)",
-      "Read(./.env.production)",
-      "Read(./.env.*.local)"
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.env-*)",
+      "Read(.env_*)",
+      "Read(!.env.example)"
     ]
   },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|mcp__.*",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-dangerous.sh\""
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-env.js"
           }
         ]
       }
